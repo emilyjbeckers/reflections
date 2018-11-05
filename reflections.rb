@@ -9,9 +9,11 @@ class Renderer
   end
 
   # Play the instructions in the given line
-  def play_line(line)
-    play_note 60
-    @sp.sleep 3
+  def play_instructions(instructions)
+    instructions.each{ |instruction|
+      play_note instruction
+      @sp.sleep 0.1
+    }
   end
 
   def play_note(pitch, opts = {})
@@ -22,26 +24,35 @@ end
 # Responsible for parsing the code as given
 class Parser
   # Load this file
-  def initialize
+  def initialize(sp)
+    @sp = sp
+    @instructions = []
   end
 
-  # return the next line in the renderer format, or :eof if there are no more lines in the file
-  def next_line
-    return :eof
+  def parse_file
+    # Note: This will break if the file has been renamed.
+    f = File.open(File.absolute_path(__dir__) + '/reflections.rb')
+
+    f.read.each_char{ |letter|
+      letters = 'abcdefghijklmnopqrstuvwxyz'
+      @instructions << letters.index(letter) + 59
+    }
+
+    f.close
   end
 
+  def instructions
+    return @instructions
+  end
 end
 
 # Main
 
-parser = Parser.new
+parser = Parser.new self
+parser.parse_file
+
 renderer = Renderer.new self
 
-renderer.play_note 60
+renderer.play_instructions parser.instructions
 
-file_line = parser.next_line
-while file_line != :eof do
-  renderer.play_line file_line
-
-  file_line = parser.next_line
-end
+# eeeeeeeeeeeeeeeeeee
