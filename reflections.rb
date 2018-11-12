@@ -7,11 +7,19 @@
 RESERVED_WORDS = ['__ENCODING__', '__LINE__', '__FILE__', 'BEGIN', 'END', 'alias', 'and', 'begin', 'break', 'case', 'class', 'def', 'defined?', 'do', 'else', 'elsif', 'end', 'ensure', 'false', 'for', 'if', 'in', 'module', 'next', 'nil', 'not', 'or', 'redo', 'rescue', 'retry', 'return', 'self', 'super', 'then', 'true', 'undef', 'unless', 'until', 'when', 'while', 'yield']
 
 VOICES = {
-  normal: {synth: :saw},
-  comment: {synth: :fm, play_opts: {divisor: 1, depth: 0.5, attack_level: 0.8}},
-  keyword: {},
+  normal: {synth: :fm, play_opts: {amp: 0.6}},
+  comment: {synth: :fm, play_opts: {divisor: 1, depth: 0.5, attack_level: 0.7, attack: 0.15, amp: 0.5}},
+  special_character: {synth: :saw},
 }
-MODIFIERS = [:string, :method, :block, :parens]
+
+MODIFIERS = {
+  uppercase: {play_opts: {attack: 0, attack_level: 1, sustain: 0.05, sustain_level: 0.5, release: 0.001, amp: 1}},
+  keyword: {play_opts: {amp: 1}},
+  string: {},
+  method: {},
+  block: {},
+  parens: {},
+}
 
 Instruction = Struct.new(:pitch, :voice, :modifiers)
 
@@ -35,7 +43,12 @@ class Renderer
       @sp.use_synth VOICES[instruction.voice][:synth]
     end
 
-    @sp.play instruction.pitch, VOICES[instruction.voice][:play_opts] || {}
+    opts = VOICES[instruction.voice][:play_opts] || {}
+
+    instruction.modifiers.each{ |modifier|
+      opts.merge(MODIFIERS[modifier])
+    }
+    @sp.play instruction.pitch, opts
   end
 end
 
@@ -65,21 +78,36 @@ class Parser
   end
 
   def parse_line(line)
-
     voice = line.match(/^\s*#/) ? :comment : :normal
 
     line.each_line(' '){ |word|
-      voice = RESERVED_WORDS.include?(word) && voice != :normal ? :keyword : voice
+      modifiers = []
+      if voice != :comment
+        modifiers << :keyword
+      end
 
       word.each_char{ |letter|
-        @instructions << Instruction.new(get_pitch(letter), voice)
+        modifiersmodifiers = []
+        voicevoice = voice
+        if letter.match(/[A-Z]/)
+          modifiersmodifiers << :uppercase
+        elsif !letter.match(/([a-zA-Z]|\s)/) && voice != :comment
+          voicevoice = :special_character
+        end
+
+        @instructions << Instruction.new(get_pitch(letter), voicevoice, modifiers + modifiersmodifiers)
       }
     }
   end
 
   def get_pitch(letter)
-    letters = 'abcdefghijklmnopqrstuvwxyz'
-    return letters.index(letter.downcase) + 59
+    if letter.match(/[A-Za-z]/)
+      letters = '_abcdefghijklmnopqrstuvwxyz'
+      return letters.index(letter.downcase) + 58
+    elsif !letter.match(/([a-zA-Z]|\s)/)
+      return letter.codepoints[0]
+    end
+
   end
 
   def instructions
@@ -97,8 +125,6 @@ print "Number of instructions: #{parser.instructions}"
 renderer = Renderer.new self
 
 renderer.play_instructions parser.instructions
-
-# eeeeeeeeeeeeeeeeeee
 
 # The below line MUST be the last line in the file (it can be moved for testing purposes).
 #>>END-HERE
