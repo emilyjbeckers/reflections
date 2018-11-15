@@ -1,10 +1,10 @@
 #>>START-HERE
 # The above line MUST be the first line in the file (it can be moved for testing purposes).
 
-# Reflections is a piece that is meant to use algorithmic composition to sonify itself.
-# It uses a framework called Sonic Pi that from what I understand is a Ruby wrapper around SuperCollider. This code will not run in a standard ruby enviroment.
+# This code must be run in a sonic pi context. It will not run in a standard ruby environment
 
-RESERVED_WORDS = ['__ENCODING__', '__LINE__', '__FILE__', 'BEGIN', 'END', 'alias', 'and', 'begin', 'break', 'case', 'class', 'def', 'defined?', 'do', 'else', 'elsif', 'end', 'ensure', 'false', 'for', 'if', 'in', 'module', 'next', 'nil', 'not', 'or', 'redo', 'rescue', 'retry', 'return', 'self', 'super', 'then', 'true', 'undef', 'unless', 'until', 'when', 'while', 'yield']
+# Incomplete set
+RESERVED_WORDS = ['break', 'case', 'class', 'def', 'do', 'else', 'elsif', 'end','false', 'for', 'if', 'nil', 'redo', 'return', 'self', 'then', 'true', 'when', 'while', 'yield']
 
 VOICES = {
   normal: {synth: :fm, play_opts: {amp: 0.6, attack: 0.01}},
@@ -65,8 +65,6 @@ class Renderer
     instruction.modifiers.each do |modifier|
       if MODIFIERS[modifier]
         opts.merge(MODIFIERS[modifier][:play_opts] || {})
-      elsif DYNAMIC_MODIFIERS[modifier[:name]]
-        opts.merge(DYNAMIC_MODIFIERS[modifier[:name]].call modifier[:value])
       end
     end
 
