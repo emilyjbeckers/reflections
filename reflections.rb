@@ -1,4 +1,4 @@
-#>>START-HERE
+
 # The above line MUST be the first line in the file (it can be moved for testing purposes).
 
 # Reflections is a piece that is meant to use algorithmic composition to sonify itself.
@@ -7,22 +7,22 @@
 RESERVED_WORDS = ['__ENCODING__', '__LINE__', '__FILE__', 'BEGIN', 'END', 'alias', 'and', 'begin', 'break', 'case', 'class', 'def', 'defined?', 'do', 'else', 'elsif', 'end', 'ensure', 'false', 'for', 'if', 'in', 'module', 'next', 'nil', 'not', 'or', 'redo', 'rescue', 'retry', 'return', 'self', 'super', 'then', 'true', 'undef', 'unless', 'until', 'when', 'while', 'yield']
 
 VOICES = {
-  normal: {synth: :fm, play_opts: {amp: 0.6}},
+  normal: {synth: :fm, play_opts: {amp: 0.6, attack: 0.05}},
   comment: {synth: :fm, play_opts: {divisor: 1, depth: 0.5, attack_level: 0.7, attack: 0.15, amp: 0.5}},
   special_character: {synth: :saw},
 }
 
 MODIFIERS = {
-  uppercase: {play_opts: {attack: 0, attack_level: 1, sustain: 0.05, sustain_level: 0.5, release: 0.001, amp: 1}},
+  uppercase: {play_opts: {attack: 0.001, attack_level: 1, sustain: 0.05, sustain_level: 0.5, release: 0.001, amp: 3}},
   keyword: {play_opts: {amp: 1}},
+  whitespace: {wait: 2},
   string: {},
   method: {},
   block: {},
   parens: {},
 }
 
-Instruction = Struct.new(:pitch, :voice, :modifiers)
-
+NoteInstruction = Struct.new(:pitch, :voice, :modifiers)
 # Responsible for rendering out the music it is given
 class Renderer
   # Take in the sonic pi context to have access to all its specific methods, as these aren't actually added to the library but methods added on the runtime.
@@ -34,7 +34,8 @@ class Renderer
   def play_instructions(instructions)
     instructions.each{ |instruction|
       play_note instruction
-      @sp.sleep 0.1
+      wait instruction
+      #>>START-HERE
     }
   end
 
@@ -49,6 +50,16 @@ class Renderer
       opts.merge(MODIFIERS[modifier])
     }
     @sp.play instruction.pitch, opts
+  end
+
+  def wait(instruction)
+    wait = 0.1
+    instruction.modifiers.each{ |modifier|
+      if MODIFIERS[modifier].include? :wait
+        wait *= MODIFIERS[modifier][:wait]
+      end
+    }
+    @sp.sleep wait
   end
 end
 
@@ -93,9 +104,11 @@ class Parser
           modifiersmodifiers << :uppercase
         elsif !letter.match(/([a-zA-Z]|\s)/) && voice != :comment
           voicevoice = :special_character
+        elsif letter.match(/\s/)
+          modifiersmodifiers << :whitespace
         end
 
-        @instructions << Instruction.new(get_pitch(letter), voicevoice, modifiers + modifiersmodifiers)
+        @instructions << NoteInstruction.new(get_pitch(letter), voicevoice, modifiers + modifiersmodifiers)
       }
     }
   end
@@ -107,7 +120,6 @@ class Parser
     elsif !letter.match(/([a-zA-Z]|\s)/)
       return letter.codepoints[0]
     end
-
   end
 
   def instructions
@@ -119,8 +131,6 @@ end
 
 parser = Parser.new self
 parser.parse_file
-
-print "Number of instructions: #{parser.instructions}"
 
 renderer = Renderer.new self
 
