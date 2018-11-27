@@ -12,22 +12,13 @@ VOICES = {
   special_character: {synth: :saw},
 }
 
-# static modifiers
-MODIFIERS = {
-  uppercase: {play_opts: {attack: 0.001, attack_level: 1, sustain: 0.05, sustain_level: 0.5, release: 0.001, amp: 3}, wait: 1.2},
-  keyword: {play_opts: {amp: 1, sustain: 0.2}, wait: 3},
-  whitespace: {wait: 2},
-  string: {play_opts: {divisor: 2.2}},
-  symbol: {play_opts: {divisor: 2.1}},
-}
-
 # Voice and modifiers are passed in as keys to above hashes
 # Pitch and effects are passed in as params that sonic pi would use more directly
 NoteInstruction = Struct.new(:pitch, :voice, :modifiers, :effects)
 
 # Responsible for rendering out the music it is given
 class Renderer
-  # Take in the sonic pi context to have access to all its specific methods, as these aren't actually added to the library but methods added on the runtime.
+  # Take in the sonic pi context to have access to all its methods
   def initialize(sp)
     @sp = sp
     @fx = {}
@@ -83,7 +74,16 @@ class Renderer
   end
 end
 
-# Responsible for parsing the code as given
+# Putting the modifiers here instead of at the top for musical reasons
+MODIFIERS = {
+  uppercase: {play_opts: {attack: 0.001, attack_level: 1, sustain: 0.05, sustain_level: 0.5, release: 0.001, amp: 3}, wait: 1.2},
+  keyword: {play_opts: {amp: 1, sustain: 0.2}, wait: 3},
+  whitespace: {wait: 2},
+  string: {play_opts: {divisor: 2.2}},
+  symbol: {play_opts: {divisor: 2.1}},
+}
+
+# Responsible for parsing in and putting together instructions that the renderer takes in
 class Parser
   # Take in the sonic pi context to have access to its methods
   def initialize(sp)
@@ -112,31 +112,33 @@ class Parser
     f.close
   end
 
+  # This thing is a monster I'm sorry
+  # I like the indent depth
   def parse_line(line)
     voice = line.match(/^\s*#/) ? :comment : :normal
     is_string = false
     indent_fx = make_indent_fx line.match(/^(\s*).*$/)[1].length
 
     line.each_line(' ') do |word|
-      modifiers = []
+      mods = []
       groups = {parens: 0, brackets: 0, pipes: 0}
       if voice != :comment && RESERVED_WORDS.include?(word)
-        modifiers << :keyword
+        mods << :keyword
       elsif word.start_with?(':') || word.end_with?(':')
-        modifiers << :symbol
+        mods << :symbol
       end
 
       word.each_char do |letter|
-        modifiersmodifiers = []
-        voicevoice = voice
+        char_mods = []
+        char_voice = voice
 
         if letter.match(/[A-Z]/)
-          modifiersmodifiers << :uppercase
+          char_mods << :uppercase
         elsif !letter.match(/([a-zA-Z]|\s)/) && voice != :comment
-          voicevoice = :special_character
+          char_voice = :special_character
         elsif letter.match(/\s/)
-          modifiersmodifiers << :whitespace
-        elsif letter == "'" || letter == '"'
+          char_mods << :whitespace
+        elsif letter.match(/['"]/)
           is_string = !is_string
         end
 
@@ -145,9 +147,9 @@ class Parser
         end
         groups_fx = make_groups_fx groups
 
-        modifiersmodifiers << :string if is_string
+        char_mods << :string if is_string
 
-        @instructions << NoteInstruction.new(get_pitch(letter), voicevoice, modifiers + modifiersmodifiers, [indent_fx, groups_fx])
+        @instructions << NoteInstruction.new(get_pitch(letter), char_voice, mods + char_mods, [indent_fx, groups_fx])
 
         if !is_string && letter == ')'
           groups[:parens] -= 1;
@@ -157,16 +159,15 @@ class Parser
   end
 
   def make_indent_fx(indent)
-    amp = 1 - (0.05 * indent)
-    return {name: :level, opts: {amp: amp}}
+    return {name: :level, opts: {amp: 1 - (0.05 * indent)}}
   end
 
   def make_groups_fx(group)
-    paren_pan = (-0.2 * group[:parens])
-    bracket_pan = (0.3 * group[:brackets])
-    pipes_pan = (0.5 * group[:pipes])
+    pan = (-0.2 * group[:parens])
+    pan += (0.3 * group[:brackets])
+    pan += (0.5 * group[:pipes])
 
-    return {name: :pan, opts: {pan: paren_pan + bracket_pan + pipes_pan}}
+    return {name: :pan, opts: {pan: pan}}
   end
 
   def get_pitch(letter)
