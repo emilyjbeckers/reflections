@@ -40,6 +40,8 @@ class Renderer
   end
   
   def play_note(instruction)
+    @sp.print instruction
+    
     # set synth
     if VOICES[instruction.voice][ :synth ]
       @sp.use_synth VOICES[instruction.voice][ :synth ]
@@ -54,7 +56,6 @@ class Renderer
     
     # build note options
     opts = VOICES[instruction.voice][ :play_opts ] || {}
-    @sp.print opts
     instruction.modifiers.each do |modifier|
       if MODIFIERS[modifier]
         opts = opts.merge(MODIFIERS[modifier][ :play_opts ] || {})
@@ -119,21 +120,21 @@ class Parser
   end
   
   def make_indent_fx(indent)
-    return { name: :level, opts: { amp: 0.5 + (0.05 * indent)}}
+    return { name: :level, opts: { amp: 1 - (0.05 * indent)}}
   end
   
-  def make_groups_fx(group)
+  def make_groups_fx(group, one_group)
     pan = (-0.2 * group[ :parens ])
     pan += (0.3 * group[ :brackets ])
-    pan += (0.5 * group[ :pipes ])
+    pan += 0.5 if one_group == :pipes
     
     return { name: :pan, opts: { pan: pan}}
   end
   
   def get_pitch(letter)
     if letter.match(/[A-Za-z]/)
-      letters = '_abcdefghijklmnopqrstuvwxyz'
-      return letters.index(letter.downcase) + 58
+      letters = 'abcdefghijklmnopqrstuvwxyz'
+      return letters.index(letter.downcase) + 59
     elsif !letter.match(/([a-zA-Z]|\s)/)
       return letter.codepoints[0]
     end
@@ -143,15 +144,20 @@ class Parser
   # I like the indent depth
   def parse_line(line)
     voice = line.match(/^\s*#/) ? :comment : :normal
-    is_string = false
     indent_fx = make_indent_fx line.match(/^(\s*).*$/)[1].length
     
+    groups = { parens: 0, brackets: 0}
+    one_group = nil
+    open_groups = {'(' => :parens , '[' => :brackets }
+    close_groups = {')' => :parens , ']' => :brackets }
+    one_groups = {"'" => :string , '"' => :string , '|' => :pipes }
+    
     line.each_line(' ') do |word|
+      # word level modifiers
       mods = []
-      groups = { parens: 0, brackets: 0, pipes: 0}
       if voice != :comment && RESERVED_WORDS.include?(word)
         mods << :keyword
-      elsif word.start_with?(':') || word.strip.end_with?(':')
+      elsif word.strip.start_with?(':') || word.strip.end_with?(':')
         mods << :symbol
       end
       word_instructions = []
@@ -160,28 +166,31 @@ class Parser
         char_mods = []
         char_voice = voice
         
+        # character level modifiers
         if letter.match(/[A-Z]/)
           char_mods << :uppercase
         elsif !letter.match(/([a-zA-Z]|\s)/) && voice != :comment
           char_voice = :special_character
         elsif letter.match(/\s/)
           char_mods << :whitespace
-        elsif letter.match(/['"]/)
-          is_string = !is_string
         end
         
-        if !is_string && letter == '('
-          groups[ :parens ] += 1;
+        # grouping symbol handling
+        if one_groups[letter]
+          if !(one_group && one_group != letter) # there is group not this letter
+            one_group = one_group ? nil : letter
+          end
+        elsif !one_group && open_groups[letter]
+          groups[open_groups[letter]] += 1;
+        elsif !one_group && close_groups[letter]
+          groups[close_groups[letter]] -= 1;
         end
-        groups_fx = make_groups_fx groups
         
-        char_mods << :string if is_string
+        groups_fx = make_groups_fx groups, one_groups[one_group]
         
+        char_mods << :string if one_groups[one_group] == :string
+        # build final instruction
         word_instructions << NoteInstruction.new(get_pitch(letter), char_voice, mods + char_mods, [indent_fx, groups_fx])
-        
-        if !is_string && letter == ')'
-          groups[ :parens ] -= 1;
-        end
       end
       
       if mods.include?( :symbol )
@@ -192,7 +201,6 @@ class Parser
     end
   end
 end
-
 
 
 # Main
