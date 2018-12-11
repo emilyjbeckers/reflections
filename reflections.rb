@@ -4,7 +4,7 @@
 # This code must be run in a sonic pi context. It will not run in a standard ruby environment
 
 # Incomplete set
-RESERVED_WORDS = ['break', 'case', 'class', 'def', 'do', 'else', 'elsif', 'end','false', 'for', 'if', 'nil', 'redo', 'return', 'self', 'then', 'true', 'when', 'while', 'yield']
+RESERVED_WORDS = ['break', 'class', 'def', 'do', 'else', 'elsif', 'end', 'false', 'if', 'nil', 'return', 'self', 'then', 'true']
 
 VOICES = {
   normal: { synth: :fm , play_opts: { amp: 0.6, attack: 0.01, release: 0.6}},
@@ -80,6 +80,12 @@ end
 
 
 
+
+
+
+
+
+
 # Putting the modifiers here instead of at the top for musical reasons
 MODIFIERS = {
   uppercase: { play_opts: { attack: 0.001, attack_level: 1, sustain: 0.01, sustain_level: 0.5, decay: 0.07, amp: 1.1, depth: 1.2}},
@@ -120,7 +126,7 @@ class Parser
   end
   
   def make_indent_fx(indent)
-    return { name: :level, opts: { amp: 1 - (0.05 * indent)}}
+    return { name: :level , opts: { amp: 1 - (0.05 * indent)}}
   end
   
   def make_groups_fx(group, one_group)
@@ -128,7 +134,7 @@ class Parser
     pan += (0.3 * group[ :brackets ])
     pan += 0.5 if one_group == :pipes
     
-    return { name: :pan, opts: { pan: pan}}
+    return { name: :pan , opts: { pan: pan}}
   end
   
   def get_pitch(letter)
